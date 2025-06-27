@@ -12,7 +12,7 @@ except:
 import argparse
 import shutil
 import os
-
+import requests
 
 ########################################## variables initialized here ############################################
 visited_links = list()
@@ -465,70 +465,73 @@ def main(URL) -> None:
     steps = []
 
     # Step 1: Extract site
+    requests.post("http://localhost:8000/update_status", json={"step": "Web-Crawler", "detail": f"Starting web extraction for URL: {URL}"})
     asyncio.get_event_loop().run_until_complete(extract(home_url=URL))
     steps.append(Panel("[yellow]Web extraction completed using crawler.[/yellow]", title="Step 1: Web-Crawler"))
+    requests.post("http://localhost:8000/update_status", json={"step": "Web-Crawler", "detail": "Web extraction completed successfully using crawler"})
 
     # Step 2: Get context
+    requests.post("http://localhost:8000/update_status", json={"step": "Context-Extraction", "detail": "Retrieving context from extracted pages"})
     context = get_context()
     steps.append(Panel("[cyan]Context successfully retrieved from pages.[/cyan]", title="Step 2: Context-Extraction"))
+    requests.post("http://localhost:8000/update_status", json={"step": "Context-Extraction", "detail": f"Context successfully retrieved from {len(context) if hasattr(context, '__len__') else 'extracted'} pages"})
 
     # Step 3: Initialize bridge
-    
+    requests.post("http://localhost:8000/update_status", json={"step": "LLM Bridge Init", "detail": "Initializing LLM bridge for agent operations"})
     bridge = llm_bridge.Bridge()
+    requests.post("http://localhost:8000/update_status", json={"step": "LLM Bridge Init", "detail": "LLM bridge initialized successfully"})
 
     print(Panel("[bold red]STARTING AGENT LOOP[/bold red]", title="Startup"))
+    requests.post("http://localhost:8000/update_status", json={"step": "Agent Loop Startup", "detail": "Starting agent loop sequence for page analysis"})
 
     # Step 4: Agent loop 1
     print(Panel("[green]AGENT loop 1: Parsing pages for inter-page relationships...[/green]", title="Loop 1"))
+    requests.post("http://localhost:8000/update_status", json={"step": "Relation-Generator", "detail": "Agent loop 1: Parsing pages for inter-page relationships"})
     parsed_pages = parse_pages(llm=bridge)
     print(Panel("[green]AGENT loop 1 complete: Parsed page relationships.[/green]", title="Loop 1"))
+    requests.post("http://localhost:8000/update_status", json={"step": "Relation-Generator", "detail": f"Agent loop 1 complete: Successfully parsed {len(parsed_pages) if hasattr(parsed_pages, '__len__') else 'page'} relationships"})
 
     steps.append(Panel("[red]Successfully parsed pages for inter-page relationships.[/red]", title="Step 3: Relation-Generator"))
     
-    
-    
     # Step 5: Agent loop 2
     print(Panel("[green]AGENT loop 2: Combining and deduplicating relations...[/green]", title="Loop 2"))
+    requests.post("http://localhost:8000/update_status", json={"step": "Removing-Redundancy&Combining", "detail": "Agent loop 2: Combining and deduplicating page relationships"})
     combined_response = remove_redundant_combine(llm=bridge, parsed_pages=parsed_pages)
     print(Panel("[green]AGENT loop 2 complete: Relations deduplicated and combined.[/green]", title="Loop 2"))
+    requests.post("http://localhost:8000/update_status", json={"step": "Removing-Redundancy&Combining", "detail": "Agent loop 2 complete: Relations successfully deduplicated and combined"})
 
     steps.append(Panel("[cyan]Combining and deduplicating page relationships.[/cyan]", title="Step 4: Removing-Redundancy&Combining"))
 
-
-
-
     # Step 6: Agent loop 3
     print(Panel("[green]AGENT loop 3: Extracting task-level descriptions...[/green]", title="Loop 3"))
+    requests.post("http://localhost:8000/update_status", json={"step": "Tasks-Extraction", "detail": "Agent loop 3: Extracting task-level descriptions from combined relations"})
     tasks_response = task_extraction(llm=bridge, combined_response=combined_response)
     print(Panel("[green]AGENT loop 3 complete: Tasks extracted.[/green]", title="Loop 3"))
+    requests.post("http://localhost:8000/update_status", json={"step": "Tasks-Extraction", "detail": f"Agent loop 3 complete: Successfully extracted task-level descriptions"})
 
     steps.append(Panel("[pink]Extracting task-level descriptions.[/pink]", title="Step 5: Tasks-Extraction"))
 
-
-
-
-
-
     # Step 7: Agent loop 4
     print(Panel("[green]AGENT loop 4: Generating detailed workflows for tasks...[/green]", title="Loop 4"))
+    requests.post("http://localhost:8000/update_status", json={"step": "Detailed-Workflows", "detail": "Agent loop 4: Generating detailed workflows for extracted tasks"})
     detailed_workflows = get_detailed_workflows(llm=bridge, tasks_response=tasks_response, combined_response=combined_response)
     print(Panel("[green]AGENT loop 4 complete: Workflows generated.[/green]", title="Loop 4"))
+    requests.post("http://localhost:8000/update_status", json={"step": "Detailed-Workflows", "detail": f"Agent loop 4 complete: Generated detailed workflows for tasks"})
 
     steps.append(Panel("[green]Detailed Workflows generated.[/green]", title="Step 6: Detailed-Workflows"))
 
-
-
     # Step 8: Save
+    requests.post("http://localhost:8000/update_status", json={"step": "Saving-Workflows", "detail": "Saving generated workflows and cleaning up old ones"})
     workflow_paths = save_workflows(detailed_workflows)
+    requests.post("http://localhost:8000/update_status", json={"step": "Saving-Workflows", "detail": f"Successfully saved {len(workflow_paths) if hasattr(workflow_paths, '__len__') else 'workflow'} workflows to disk"})
 
     steps.append(Panel("[cyan]Old Workflows deleted - new workflows saved.[/cyan]", title="Step 7: Saving-Workflows"))
 
-
-
     # Summary panel
     print(Panel(Group(*steps), title="Task Extractor Agent Summary", border_style="blue"))
+    requests.post("http://localhost:8000/update_status", json={"step": "Task Extractor Complete", "detail": "All agent loops completed successfully. Summary panel generated."})
 
-    return combined_response, tasks_response, detailed_workflows, WORKFLOW_DIR, workflow_paths
+    return combined_response, tasks_response, detailed_workflows, WORKFLOW_DIR, workflow_paths , visited_links
 
 
 

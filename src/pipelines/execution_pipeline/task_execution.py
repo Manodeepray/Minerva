@@ -26,7 +26,7 @@ from rich import print
 from rich.console import Group
 from rich.panel import Panel
 from rich.text import Text
-
+import requests
 
 
 ##################### variables
@@ -122,6 +122,7 @@ async def run_plan(state ,agent , parsed_plan, initial_page_html , tool_registry
     state["page_html"]= initial_page_html
     state["current_step"] = 0
     state["history"] = []
+    requests.post("http://localhost:8000/update_status", json={"step": "Steps", "detail": f"executing {len(parsed_plan)} steps pf parsed plan"})
 
     for idx, step_info in enumerate(parsed_plan):
         print(f"\n➡️ Step {idx+1}: {step_info['step']}")
@@ -166,6 +167,7 @@ async def run_plan(state ,agent , parsed_plan, initial_page_html , tool_registry
         tool_args = decision.get("tool_args", {})
         tool_args['state'] = state
         tool_func = tool_registry.get(tool_name)
+        requests.post("http://localhost:8000/update_status", json={"step": "Steps", "detail": f"using tool {tool_name}"})
 
 
         # print(f"TOOL DETAILS : TOOL_NAME -> {tool_name} | TOOL_ARGS  -> {tool_args} | REGISTRY FUNC -> {tool_func} ")
@@ -216,57 +218,72 @@ async def run_plan(state ,agent , parsed_plan, initial_page_html , tool_registry
 
 async def Execute(state, wf, Agent, llm, home_url, workflow_path, failed=failed):
     
-    
-    
-
     print(Panel(Text("🚀 Launching Headless Browser", style="bold green"), title="Step 1: Browser Launch", border_style="green"))
+    requests.post("http://localhost:8000/update_status", json={"step": "Browser Launch", "detail": "Launching headless browser with security arguments"})
     browser = await launch(headless=True, args=['--no-sandbox', '--disable-setuid-sandbox'])
+    requests.post("http://localhost:8000/update_status", json={"step": "Browser Launch", "detail": "Headless browser launched successfully"})
 
     print(Panel(Text(f"🌐 Navigating to: {home_url}", style="bold cyan"), title="Step 2: Navigation", border_style="cyan"))
+    requests.post("http://localhost:8000/update_status", json={"step": "Navigation", "detail": f"Creating new page and navigating to: {home_url}"})
     page = await browser.newPage()
     await page.goto(home_url, {'waitUntil': 'networkidle2'})
+    requests.post("http://localhost:8000/update_status", json={"step": "Navigation", "detail": f"Successfully navigated to {home_url}, page loaded"})
 
     state['page'] = page
     state["home_url"] = home_url
     state["curr_url"] = page.url
+    requests.post("http://localhost:8000/update_status", json={"step": "State Update", "detail": f"State updated with page instance and URLs. Current URL: {page.url}"})
 
-    print(Panel(Text("🛠️ Initializing tools for interaction", style="bold magenta"), title="Step 3: Tool Setup", border_style="magenta"))
     tools = [
         Actuators.navigate_to_link,
         Actuators.click_button_by_html,
         Actuators.form_filling_tool,
     ]
     state['tools'] = tools
+    requests.post("http://localhost:8000/update_status", json={"step": "Tools Setup", "detail": f"Loaded {len(tools)} interaction tools (navigate, click, form filling)"})
 
     tool_registry = {
         "navigate_to_link": Actuators.navigate_to_link,
         "form_filling_tool": Actuators.form_filling_tool,
         "click_button_by_html": Actuators.click_button_by_html
     }
+    requests.post("http://localhost:8000/update_status", json={"step": "Tool Registry", "detail": f"Created tool registry with {len(tool_registry)} mapped tools"})
 
     print(Panel(Text("🧠 Extracting tool-based workflow from task plan", style="bold yellow"), title="Step 4: Workflow Extraction", border_style="yellow"))
+    requests.post("http://localhost:8000/update_status", json={"step": "Workflow Extraction", "detail": f"Extracting tool-based workflow from task plan using workflow path: {workflow_path}"})
     workflow_parser = Brain.WorkflowExtractor()
     tool_flow_list = workflow_parser.create_tools_workflow(state, wf)
+    requests.post("http://localhost:8000/update_status", json={"step": "Workflow Extraction", "detail": f"Successfully extracted workflow with {len(tool_flow_list) if hasattr(tool_flow_list, '__len__') else 'multiple'} tool flow steps"})
 
     print(Panel(Text(f"{tool_flow_list}", style="bold white"), title="Tool Flow List", border_style="white"))
 
     print(Panel(Text("📋 Parsing tool flow into structured plan", style="bold blue"), title="Step 5: Parsed Plan Creation", border_style="blue"))
+    requests.post("http://localhost:8000/update_status", json={"step": "Parsed Plan Creation", "detail": "Converting tool flow list into structured execution plan"})
     parsed_plan = Brain.get_parsed_plan(tool_flow_list=tool_flow_list)
+    requests.post("http://localhost:8000/update_status", json={"step": "Parsed Plan Creation", "detail": "Successfully created structured execution plan from tool flow"})
 
     print(Panel(Text(f"{parsed_plan}", style="bold white"), title="Parsed Plan", border_style="white"))
 
     print(Panel(Text("📄 Capturing initial page HTML", style="bold green"), title="Step 6: Initial Page Snapshot", border_style="green"))
+    requests.post("http://localhost:8000/update_status", json={"step": "Initial Page Snapshot", "detail": "Capturing current page HTML content for analysis"})
     initial_page_html = await page.content()
+    requests.post("http://localhost:8000/update_status", json={"step": "Initial Page Snapshot", "detail": f"Captured {len(initial_page_html)} characters of HTML content"})
 
     print(Panel(Text("🤖 Loading agent and prompt for execution", style="bold cyan"), title="Step 7: Agent Prompt", border_style="cyan"))
+    requests.post("http://localhost:8000/update_status", json={"step": "Agent Setup", "detail": "Loading agent prompt template and creating LLM chain"})
     prompt = Agent.get_agent_prompt()
     agent = LLMChain(llm=llm, prompt=prompt)
+    requests.post("http://localhost:8000/update_status", json={"step": "Agent Setup", "detail": "Agent chain created successfully with loaded prompt template"})
 
     print(Panel(Text("⚙️ Running plan with tools and agent", style="bold magenta"), title="Step 8: Executing Plan", border_style="magenta"))
+    requests.post("http://localhost:8000/update_status", json={"step": "Executing Plan", "detail": f"Starting plan execution with agent, tools, and workflow: {workflow_path}"})
     state, failed = await run_plan(state, agent, parsed_plan, initial_page_html, tool_registry, page, workflow_path, failed)
+    requests.post("http://localhost:8000/update_status", json={"step": "Executing Plan", "detail": f"Plan execution completed. Failures encountered: {len(failed)}"})
 
     print(Panel(Text("✅ Closing browser session", style="bold red"), title="Step 9: Browser Shutdown", border_style="red"))
+    requests.post("http://localhost:8000/update_status", json={"step": "Browser Shutdown", "detail": "Closing browser session and cleaning up resources"})
     await browser.close()
+    requests.post("http://localhost:8000/update_status", json={"step": "Browser Shutdown", "detail": "Browser session closed successfully"})
 
     
     
@@ -346,27 +363,38 @@ def main(workflow_path, home_url , state = None , failed = None ):
     
     
 
-def batch_execution(workflow_paths , url ):
+def batch_execution(workflow_paths, url):
+    requests.post("http://localhost:8000/update_status", json={"step": "Batch Execution Init", "detail": f"Starting batch execution for {len(workflow_paths)} workflows on URL: {url}"})
+    
     states = []
-    state = {
-    "page" : None,  # Puppeteer page instance
-    "home_url": None,
-    "curr_url": None,
-    "last_action": None,
-    "page_html": None,
-    "current_step": 0,
-    "history": [],
-    }
-
+    requests.post("http://localhost:8000/update_status", json={"step": "States Initialization", "detail": "Initialized empty states list for workflow results"})
 
     failed = {}
+    requests.post("http://localhost:8000/update_status", json={"step": "Failed Dictionary Init", "detail": "Initialized failed dictionary for tracking workflow failures"})
     
-    
-    for workflow_path in workflow_paths:
-        state  , failed = main(state=state , workflow_path = workflow_path , home_url= url , failed = failed)
-        states.append(state)
+    for i, workflow_path in enumerate(workflow_paths, 1):
+        requests.post("http://localhost:8000/update_status", json={"step": "Workflow Processing", "detail": f"Processing workflow {i}/{len(workflow_paths)}: {workflow_path}"})
         
-    return states  , failed
+        state = {
+            "page": None,  # Puppeteer page instance
+            "home_url": None,
+            "curr_url": None,
+            "last_action": None,
+            "page_html": None,
+            "current_step": 0,
+            "history": [],
+        }
+        requests.post("http://localhost:8000/update_status", json={"step": "State Creation", "detail": f"Created initial state object for workflow: {workflow_path}"})
+        
+        state, failed = main(state=state, workflow_path=workflow_path, home_url=url, failed=failed)
+        requests.post("http://localhost:8000/update_status", json={"step": "Workflow Execution", "detail": f"Completed execution for workflow {i}/{len(workflow_paths)}: {workflow_path}"})
+        
+        states.append(state)
+        requests.post("http://localhost:8000/update_status", json={"step": "State Storage", "detail": f"Stored state result for workflow: {workflow_path}. Total states: {len(states)}"})
+    
+    requests.post("http://localhost:8000/update_status", json={"step": "Batch Execution Complete", "detail": f"Completed batch execution of all {len(workflow_paths)} workflows. Total failures: {len(failed)}"})
+    
+    return states, failed
     
     
     
