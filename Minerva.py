@@ -13,9 +13,9 @@ try:
     from src.pipelines.exploit_pipeline import attacker
 
 except:
-    from .pipelines.execution_pipeline import task_execution
-    from .pipelines.extraction_pipeline import task_extraction
-    from .pipelines.exploit_pipeline import attacker
+    from .src.pipelines.execution_pipeline import task_execution
+    from .src.pipelines.extraction_pipeline import task_extraction
+    from .src.pipelines.exploit_pipeline import attacker
     
 import argparse
 
